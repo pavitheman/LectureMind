@@ -1,0 +1,429 @@
+# Product Requirements Document
+## LectureMind — AI-Powered Lecture Accessibility Tool
+**Document Type:** Product Requirements Document (PRD)
+**Version:** 1.0
+**Status:** Draft
+**Last Updated:** May 2026
+
+---
+
+## 📋 Table of Contents
+1. [Overview](#overview)
+2. [Goals & Non-Goals](#goals--non-goals)
+3. [User Personas](#user-personas)
+4. [System Architecture Overview](#system-architecture-overview)
+5. [Feature Specifications](#feature-specifications)
+   - [F1: Audio Transcription](#f1-audio-transcription)
+   - [F2: Flashcard Generation](#f2-flashcard-generation)
+   - [F3: Lecture Summarisation](#f3-lecture-summarisation)
+   - [F4: Sentiment & Complexity Analysis](#f4-sentiment--complexity-analysis)
+   - [F5: Downloadable Study Pack](#f5-downloadable-study-pack)
+6. [Tech Stack](#tech-stack)
+7. [AI Models Used](#ai-models-used)
+8. [Non-Functional Requirements](#non-functional-requirements)
+9. [Milestones & Phasing](#milestones--phasing)
+10. [Open Questions](#open-questions)
+
+---
+
+## Overview
+
+**LectureMind** is a web-based AI tool designed to help university students get more out of their lecture recordings. It accepts an uploaded audio or video file, automatically transcribes the speech, generates a concise summary, produces study flashcards, and flags sections of the lecture that may be particularly complex or emotionally heavy — all within a clean, accessible web interface.
+
+The system is built around three pre-trained AI models operating on different data modalities (audio, text, and text sentiment), fulfilling the CM3020 Final Year Project requirement of orchestrating multiple models to achieve a well-defined goal.
+
+---
+
+## Goals & Non-Goals
+
+### ✅ Goals
+- Automatically transcribe lecture audio into accurate text using a speech-to-text model
+- Generate meaningful study flashcards from lecture transcripts using a local language model
+- Summarise long transcripts into digestible key points
+- Detect emotionally complex or heavy sections of a lecture using sentiment analysis
+- Deliver results through a clean, self-built web interface (Flask + HTML/CSS/JS)
+- Complete processing within a reasonable time for a typical 1-hour lecture
+
+### ❌ Non-Goals
+- Real-time live transcription during a lecture (batch processing only)
+- Integration with university LMS platforms (e.g. Moodle, Canvas)
+- Mobile app development
+- Multi-user accounts or cloud storage of transcripts
+- Support for non-English lectures (v1)
+
+---
+
+## User Personas
+
+| Persona | Description | Primary Needs |
+|---|---|---|
+| Full-time student | Attends lectures, reviews recordings before exams | Flashcards, summary, fast turnaround |
+| Part-time / working student | Misses some lectures, relies on recordings | Accurate transcript, key point summary |
+| Student with accessibility needs | Needs text-based alternatives to audio | High-quality transcript, readable output |
+| Study group organiser | Prepares shared study materials | Downloadable flashcards, clean formatting |
+
+---
+
+## System Architecture Overview
+
+```
+User (Web Browser)
+      │
+      ▼
+Flask Web Server (app.py)
+      │
+  ┌───┴──────────────────────────────────┐
+  │                                      │
+  ▼                                      ▼
+Audio Processing Pipeline          Static Web Frontend
+  ├── Whisper (transcription)         ├── index.html
+  ├── Ollama/llama3.2 (flashcards     ├── style.css
+  │     + summary)                    └── script.js
+  └── HuggingFace Sentiment
+        Analysis (complexity
+        flagging)
+      │
+      ▼
+JSON Response → Displayed in Browser
+```
+
+**Recommendation:** Python 3.11+ with Flask for the backend. Whisper and HuggingFace models run locally; Ollama runs as a local server. No cloud API costs for core functionality.
+
+---
+
+## Feature Specifications
+
+### F1: Audio Transcription
+**Purpose**
+Convert uploaded lecture audio or video files into accurate text, forming the foundation for all downstream processing.
+
+**User Flow**
+```
+User uploads audio file (mp3, mp4, wav, m4a)
+  → Flask receives file
+  → Whisper model transcribes audio
+  → Transcript displayed in Transcript box
+  → Transcript passed to F2, F3, F4
+```
+
+**Display Format**
+```
+📝 Transcript
+
+Everything in this world is made up of matter and those matters
+behave with each other in certain ways. That is the foundation
+of chemistry...
+```
+
+**Tech Approach**
+
+Model: OpenAI Whisper (`base` model)
+- Runs fully locally, no API key or internet required
+- Supports mp3, mp4, wav, m4a, and most common audio formats
+- Automatically detects language
+- `base` model chosen for speed/accuracy balance on CPU hardware
+
+Model selection rationale (to be documented in report):
+
+| Model | Size | Speed (CPU) | Accuracy | Decision |
+|---|---|---|---|---|
+| tiny | 39MB | Very fast | Lower | Rejected — too many errors |
+| base | 74MB | Fast | Good | ✅ Selected |
+| small | 244MB | Slow | Better | Rejected — too slow on CPU |
+| medium | 769MB | Very slow | High | Rejected — impractical |
+
+Caching: Whisper model loaded once on server start to avoid reload delay per request.
+
+**Data Fields**
+
+| Field | Required | Source |
+|---|---|---|
+| Raw transcript text | ✅ | Whisper |
+| Detected language | ✅ | Whisper |
+| Word-level timestamps | ⚡ Optional | Whisper (verbose mode) |
+
+---
+
+### F2: Flashcard Generation
+**Purpose**
+Automatically generate study flashcards from the lecture transcript, saving students hours of manual note-taking.
+
+**User Flow**
+```
+Transcript received from F1
+  → Sent to Ollama with structured prompt
+  → LLM generates Q&A flashcards
+  → Flashcards displayed in Flashcards box
+```
+
+**Display Format**
+```
+🃏 Flashcards
+
+Card 1
+Front: What is chemistry?
+Back: The study of how matter interacts with other matter.
+
+Card 2
+Front: What are the building blocks of all matter?
+Back: Atoms and molecules.
+
+Card 3
+Front: Why does matter behave differently with other substances?
+Back: Due to differences in chemical properties and atomic structure.
+```
+
+**Tech Approach**
+
+Model: Ollama with llama3.2 (runs locally)
+- Free, open-source, no API costs
+- Runs entirely on local machine
+- llama3.2 chosen over larger models for speed on CPU hardware
+
+Prompt design:
+```
+Here is a lecture transcript. Please summarise it and generate 
+3 flashcards from it in the format:
+Front: [question]
+Back: [answer]
+
+Transcript: {transcript}
+```
+
+Model selection rationale (to be documented in report):
+
+| Model | Size | Quality | Speed | Decision |
+|---|---|---|---|---|
+| llama3.2 | 2GB | Good | Fast | ✅ Selected |
+| llama3 | 4.7GB | Better | Slow | Rejected — too slow |
+| mistral | 4.1GB | Good | Medium | Considered — future option |
+
+**Data Fields**
+
+| Field | Required | Source |
+|---|---|---|
+| Flashcard front (question) | ✅ | Ollama |
+| Flashcard back (answer) | ✅ | Ollama |
+| Number of cards | ✅ | User configurable (default: 3) |
+
+---
+
+### F3: Lecture Summarisation
+**Purpose**
+Generate a concise paragraph summary of the lecture, giving students a quick overview before diving into flashcards.
+
+**User Flow**
+```
+Transcript received from F1
+  → Sent to Ollama with summarisation prompt
+  → Summary displayed above flashcards
+```
+
+**Display Format**
+```
+📋 Summary
+
+This lecture introduces the fundamental concept of chemistry,
+explaining that all matter in the world interacts with other
+matter in unique ways. The session covers the basic definition
+of chemistry and sets the foundation for understanding atomic
+and molecular interactions.
+```
+
+**Tech Approach**
+
+Uses the same Ollama/llama3.2 model as F2 — both requests batched in a single API call to reduce latency.
+
+Prompt:
+```
+First, give a 2-3 sentence summary of this lecture transcript.
+Then generate 3 flashcards in Front/Back format.
+Transcript: {transcript}
+```
+
+---
+
+### F4: Sentiment & Complexity Analysis
+**Purpose**
+Flag sections of the transcript that are emotionally complex, heavy, or potentially confusing — helping students identify which parts of a lecture deserve extra attention.
+
+**User Flow**
+```
+Transcript split into segments (by sentence or paragraph)
+  → Each segment passed to HuggingFace sentiment model
+  → Segments labelled: Positive / Neutral / Negative
+  → Complex/negative segments highlighted in UI
+  → Summary: "3 sections flagged as potentially complex"
+```
+
+**Display Format**
+```
+🧠 Complexity Analysis
+
+⚠️ Flagged Sections (may need extra attention):
+
+Segment 2: "The quantum mechanical model describes electrons
+not as particles in fixed orbits but as probability clouds..."
+→ Sentiment: NEGATIVE (score: 0.87) — Dense/complex content
+
+Segment 5: "This contradicts classical Newtonian assumptions
+and requires a paradigm shift in thinking..."
+→ Sentiment: NEGATIVE (score: 0.79) — Potentially challenging
+
+✅ 6 of 8 segments: Clear and straightforward
+```
+
+**Tech Approach**
+
+Model: HuggingFace `tabularisai/multilingual-sentiment-analysis`
+- Free, runs via transformers library
+- Classifies text as Positive, Neutral, or Negative
+- Negative sentiment in academic text often correlates with complex, dense, or challenging content
+
+Implementation:
+```python
+from transformers import pipeline
+sentiment_pipeline = pipeline("sentiment-analysis", 
+    model="tabularisai/multilingual-sentiment-analysis")
+
+segments = transcript.split(". ")
+results = sentiment_pipeline(segments)
+flagged = [s for s, r in zip(segments, results) 
+           if r["label"] == "NEGATIVE" and r["score"] > 0.7]
+```
+
+Model selection rationale (to be documented in report):
+
+| Model | Multilingual | Speed | Decision |
+|---|---|---|---|
+| tabularisai/multilingual-sentiment-analysis | ✅ | Fast | ✅ Selected |
+| distilbert-base-uncased-finetuned-sst-2 | ❌ | Very fast | Considered |
+| cardiffnlp/twitter-roberta-base-sentiment | ❌ | Medium | Rejected — trained on tweets |
+
+**Data Fields**
+
+| Field | Required | Source |
+|---|---|---|
+| Segment text | ✅ | Split from transcript |
+| Sentiment label | ✅ | HuggingFace model |
+| Confidence score | ✅ | HuggingFace model |
+| Flagged status | ✅ | Derived (label + threshold) |
+
+---
+
+### F5: Downloadable Study Pack
+**Purpose**
+Allow students to download their transcript, summary, and flashcards as a text file for offline study.
+
+**User Flow**
+```
+Results displayed on screen
+  → User clicks "Download Study Pack"
+  → .txt file downloaded containing:
+      - Transcript
+      - Summary
+      - Flashcards
+      - Flagged complex sections
+```
+
+**Tech Approach**
+
+Generated server-side in Flask and returned as a file download response:
+```python
+from flask import Response
+
+@app.route("/download", methods=["POST"])
+def download():
+    content = f"TRANSCRIPT\n{transcript}\n\nSUMMARY\n{summary}\n\nFLASHCARDS\n{flashcards}"
+    return Response(content, mimetype="text/plain",
+        headers={"Content-Disposition": "attachment;filename=study_pack.txt"})
+```
+
+---
+
+## Tech Stack
+
+| Layer | Choice | Reason |
+|---|---|---|
+| Language | Python 3.11 | Best ecosystem for AI/ML models |
+| Web framework | Flask 2.x | Lightweight, easy to learn, industry standard |
+| Speech-to-text | OpenAI Whisper (base) | Free, local, highly accurate |
+| Language model | Ollama + llama3.2 | Free, local, no API costs |
+| Sentiment analysis | HuggingFace transformers | Free, large model library, easy API |
+| Frontend | HTML5 + CSS3 + Vanilla JS | Full custom build, no frameworks |
+| Hosting | Local (localhost:5000) | FYP scope; can deploy to Railway/Render later |
+
+---
+
+## AI Models Used
+
+| # | Model | Task | Data Type | Source |
+|---|---|---|---|---|
+| 1 | OpenAI Whisper (base) | Speech → Text | Audio | openai/whisper |
+| 2 | Ollama llama3.2 | Text → Summary + Flashcards | Text | ollama.com |
+| 3 | HuggingFace Sentiment | Text → Complexity labels | Text | huggingface.co |
+
+All three models operate on different data domains (audio, generated text, sentiment analysis), satisfying the CM3020 requirement for models operating across multiple data spaces.
+
+---
+
+## Non-Functional Requirements
+
+| Requirement | Target |
+|---|---|
+| Transcription time (1 min audio, CPU) | < 60 seconds |
+| Flashcard generation time | < 30 seconds |
+| Sentiment analysis time | < 10 seconds |
+| Supported file formats | mp3, mp4, wav, m4a |
+| Max file size | 500MB |
+| Browser compatibility | Chrome, Firefox, Edge |
+| Whisper model size | base (74MB) — balances speed and accuracy |
+| Concurrent users | 1 (local deployment; FYP scope) |
+| Language support | English (v1) |
+
+---
+
+## Milestones & Phasing
+
+### Phase 1 — Core Pipeline (Week 1–2) ✅ Complete
+- [x] Whisper installed and tested via command line
+- [x] Ollama installed with llama3.2 model
+- [x] Python script connecting Whisper → Ollama
+- [x] Basic transcript + flashcard output working
+
+### Phase 2 — Web Interface (Week 3–4) ✅ Complete
+- [x] Flask backend (`app.py`) with `/process` endpoint
+- [x] Custom HTML/CSS/JS frontend
+- [x] File upload and result display working
+- [x] Loading state and error handling
+
+### Phase 3 — Third Model & Features (Week 5–6) 🔄 In Progress
+- [ ] HuggingFace sentiment analysis integrated (F4)
+- [ ] Lecture summary added to output (F3)
+- [ ] Download study pack feature (F5)
+- [ ] Number of flashcards selector
+
+### Phase 4 — Testing & Evaluation (Week 7–8) ⏳ Upcoming
+- [ ] Test Whisper across different audio qualities
+- [ ] Compare Whisper model sizes (tiny vs base vs small)
+- [ ] User testing with 3–5 students
+- [ ] Iterate UI based on feedback
+- [ ] Unit tests for Flask routes
+- [ ] Final report write-up
+
+---
+
+## Open Questions
+
+| # | Question | Priority |
+|---|---|---|
+| 1 | Should sentiment analysis flag by sentence or paragraph? Sentence = more precise but slower | High |
+| 2 | Should the number of flashcards be user-configurable (3 / 5 / 10)? | High |
+| 3 | Should we support video files (.mp4) or audio only for v1? Whisper supports both | Medium |
+| 4 | Should complex sections be highlighted inline in the transcript or shown separately? | Medium |
+| 5 | Is a `.txt` download sufficient or should we generate a formatted `.pdf` study pack? | Medium |
+| 6 | Should we add multi-language support using Whisper's built-in language detection? | Low |
+
+---
+
+💡 **Quick Start Recommendation:** Begin user testing as early as Phase 3 — even with 2 models working, real student feedback will reveal UX issues early and give you strong evaluation evidence for the report.
