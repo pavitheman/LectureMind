@@ -1,0 +1,12 @@
+test.*
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.json
+*.srt
+*.tsv
+*.vtt
+*.txt
+__pycache__/
+*.pyc
