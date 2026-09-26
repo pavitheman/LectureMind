@@ -21,7 +21,7 @@ The current implementation uses three pretrained AI models:
 | Salesforce BLIP `Salesforce/blip-image-captioning-base` | Optional descriptions of slide images |
 | Llama 3.2 through Ollama | Summaries, concepts, flashcards, quizzes, and structured mind-map content |
 
-The mind map is generated from Llama's structured output and drawn as SVG. Graphviz is used as an optional renderer when installed; LectureMind has a built-in SVG fallback. Graphviz is not an additional AI model. Earlier project correspondence mentioned a possible additional AI model, so confirm with the client or supervisor whether a fourth model is still a requirement before treating this model scope as final.
+The mind map is generated from Llama's structured output and drawn as SVG. Graphviz is used as an optional renderer when installed; LectureMind has a built-in SVG fallback. Graphviz is not an additional AI model. The preliminary report specifies three pretrained models, and the project brief asks for multiple models across data types. An August 21 client message also mentioned a mind-map generator using “another AI model”; the current implementation reuses Llama for the map. Confirm whether that message meant a separate fourth model before describing a separate map model as a client requirement.
 
 ## Requirements
 
@@ -103,11 +103,11 @@ This timeline records dated checkpoints supported by the available Git history a
 | August 21, 2026 | Client correspondence discusses the AI model count and mind-map direction. |
 | September 9, 2026 | Preliminary-report feedback identifies areas to strengthen, including technical design, work plan, evaluation, and prototype visuals. |
 | September 15, 2026 | Project correspondence describes the three-model scope and the mind map as Llama-generated content rendered with Graphviz. |
-| September 26, 2026 | Current stabilization work adds the Flask interface, mind-map and study-material flows, dependency setup, ignore rules, and automated tests. These changes are local until committed. |
+| September 26, 2026 | PR #2 merged the Flask interface, mind-map and study-material flows, dependency setup, ignore rules, tests, and documentation into `main`. A follow-up BLIP captioning correction is under review in PR #3. |
 
 ## Current limitations
 
 - Output quality depends on the recording, slide readability, and locally available model performance.
 - BLIP captions are optional; slide text extraction can continue without them.
 - Automated tests mock model calls, so verify the complete upload-to-results flow locally before a demonstration or release.
-- Confirm whether the client still expects a fourth pretrained AI model; the current implementation and preliminary-report scope describe three.
+- Confirm whether the client expected the mind map to use a separate pretrained model; the current implementation uses Llama for the map, and the preliminary report specifies three models total.
