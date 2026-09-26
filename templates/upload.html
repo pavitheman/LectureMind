@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f5">
+  <title>LectureMind · Turn lectures into study tools</title>
+  <style>
+    :root{color-scheme:light;--ink:#172f3d;--muted:#61727b;--line:#dce4e2;--paper:#fff;--canvas:#f7f8f5;--teal:#087f8c;--teal-dark:#076a75;--pale:#e8f4f2;--warn:#9b3d36;--warn-bg:#fff0ed;--shadow:0 18px 50px rgba(27,53,61,.08)}
+    *{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}.shell{width:min(100% - 36px,1040px);margin:0 auto}.topbar{height:78px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px;color:var(--ink);font-size:17px;font-weight:750;letter-spacing:-.3px;text-decoration:none}.brand-mark{width:38px;height:38px;border-radius:12px;background:var(--ink);display:grid;place-items:center;color:white}.brand-mark svg{width:21px;height:21px}.local-badge{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;color:#52666e;font-size:12px;font-weight:650;background:#fff}.local-dot{width:8px;height:8px;border-radius:50%;background:#39936d}.hero{padding:53px 0 24px;text-align:center}.eyebrow{color:var(--teal);font-size:12px;text-transform:uppercase;letter-spacing:1.5px;font-weight:800}.hero h1{max-width:720px;margin:12px auto 13px;font-size:clamp(34px,5vw,54px);line-height:1.08;letter-spacing:-2px}.hero p{max-width:590px;margin:0 auto;color:var(--muted);font-size:16px}.upload-card{max-width:760px;margin:24px auto 0;padding:28px;background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}.form-title{font-size:16px;font-weight:750;margin:0 0 5px}.form-help{margin:0 0 20px;color:var(--muted);font-size:13px}.file-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.file-choice{position:relative;min-height:154px;padding:19px;text-align:left;border:1px solid var(--line);border-radius:15px;background:#fff;transition:border-color .16s,background .16s}.file-choice:hover,.file-choice:focus-within,.file-choice.dragging{border-color:var(--teal);background:#f5fbfa}.file-choice input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.file-choice input:focus-visible{outline:3px solid #9dd7d2;outline-offset:3px;border-radius:15px}.file-icon{display:grid;place-items:center;width:38px;height:38px;margin-bottom:12px;border-radius:12px;background:var(--pale);color:var(--teal)}.file-icon svg{width:20px;height:20px}.file-heading{font-size:14px;font-weight:750}.file-description{margin-top:3px;color:var(--muted);font-size:12px}.file-name{display:none;margin-top:9px;color:var(--teal-dark);font-size:12px;font-weight:700;overflow-wrap:anywhere}.file-choice.has-file .file-name{display:block}.file-choice.has-file .file-description{display:none}.submit-row{display:flex;align-items:center;gap:16px;margin-top:19px}.submit{flex:1;min-height:50px;display:flex;justify-content:center;align-items:center;gap:9px;border:0;border-radius:12px;background:var(--teal);color:#fff;font-size:14px;font-weight:750;cursor:pointer;transition:background .15s}.submit:hover{background:var(--teal-dark)}.submit:disabled{opacity:.62;cursor:wait}.submit svg{width:17px;height:17px}.privacy{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px}.privacy svg{width:16px;height:16px;color:#39936d;flex:none}.error{margin:15px 0 0;padding:12px 14px;border:1px solid #f0c3bd;border-radius:11px;background:var(--warn-bg);color:var(--warn);font-size:13px;text-align:left}.loading{display:none;margin-top:20px;padding:17px;border-radius:13px;background:#f3f8f7;text-align:left}.loading.active{display:flex;align-items:center;gap:13px}.spinner{width:22px;height:22px;border:3px solid #cbdedb;border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite;flex:none}@keyframes spin{to{transform:rotate(360deg)}}.loading strong{display:block;font-size:13px}.loading span{color:var(--muted);font-size:12px}.steps{display:flex;flex-wrap:wrap;justify-content:center;gap:23px;margin:28px auto 0;color:#63747a;font-size:12px}.steps span{display:flex;align-items:center;gap:7px}.step-dot{width:7px;height:7px;border-radius:50%;background:#72aaa5}.footer{text-align:center;margin:36px 0 24px;color:#8a979b;font-size:11px}
+    @media(max-width:620px){.shell{width:min(100% - 24px,1040px)}.topbar{height:66px}.hero{padding:37px 0 15px}.hero h1{letter-spacing:-1.3px}.upload-card{padding:19px;border-radius:18px}.file-grid{grid-template-columns:1fr}.file-choice{min-height:136px}.submit-row{align-items:stretch;flex-direction:column;gap:11px}.privacy{justify-content:center}.steps{gap:12px 18px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+  </style>
+</head>
+<body>
+  <header class="shell topbar">
+    <a class="brand" href="/" aria-label="LectureMind home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4.5 5.5c2.8-.8 5.3-.3 7.5 1.4v12c-2.2-1.7-4.7-2.2-7.5-1.4v-12Zm15 0c-2.8-.8-5.3-.3-7.5 1.4v12c2.2-1.7 4.7-2.2 7.5-1.4v-12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>LectureMind</a>
+    <span class="local-badge"><i class="local-dot"></i>Private, local processing</span>
+  </header>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">A clearer way to review</div>
+      <h1>Make more of every lecture.</h1>
+      <p>Turn a recording and slides into a transcript, key ideas, flashcards, a quiz, and a visual mind map.</p>
+    </section>
+    <section class="upload-card" aria-labelledby="upload-heading">
+      <h2 class="form-title" id="upload-heading">Add your lecture materials</h2>
+      <p class="form-help">Choose an audio recording, a PowerPoint, or both. At least one file is required.</p>
+      <form id="uploadForm" action="/process" method="post" enctype="multipart/form-data">
+        <div class="file-grid">
+          <label class="file-choice" id="audioCard" for="audioInput">
+            <span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12.2a3 3 0 1 1-2-2.83V6l10-2v11.2a3 3 0 1 1-2-2.83V3.8L12 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="file-heading">Audio or video</span>
+            <span class="file-description">MP3, WAV, M4A, or MP4</span>
+            <span class="file-name" id="audioName"></span>
+            <input type="file" name="audio" id="audioInput" accept=".mp3,.mp4,.wav,.m4a" aria-label="Choose audio or video file">
+          </label>
+          <label class="file-choice" id="slidesCard" for="slidesInput">
+            <span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 22h8m-4-3v3M7 14l3-3 2 2 2-2 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="file-heading">PowerPoint slides</span>
+            <span class="file-description">PPTX presentation</span>
+            <span class="file-name" id="slidesName"></span>
+            <input type="file" name="slides" id="slidesInput" accept=".pptx" aria-label="Choose PowerPoint file">
+          </label>
+        </div>
+        <div class="submit-row">
+          <button class="submit" type="submit" id="submitBtn"><span>Build my study materials</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div class="privacy"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z" stroke="currentColor" stroke-width="1.7"/><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Files stay on this device</div>
+        </div>
+      </form>
+      {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+      <div class="loading" id="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><div><strong>Working through your lecture…</strong><span>Local AI models can take a few minutes. Keep this tab open.</span></div></div>
+    </section>
+    <div class="steps" aria-label="What LectureMind creates"><span><i class="step-dot"></i>Transcript and slide notes</span><span><i class="step-dot"></i>Summary and key concepts</span><span><i class="step-dot"></i>Active recall and mind map</span></div>
+  </main>
+  <footer class="shell footer">LectureMind · Local AI-assisted study tools</footer>
+  <script>
+    const form=document.getElementById('uploadForm');
+    const audio=document.getElementById('audioInput');
+    const slides=document.getElementById('slidesInput');
+    const button=document.getElementById('submitBtn');
+    const loading=document.getElementById('loading');
+    function showFile(input,card,name){const file=input.files&&input.files[0];card.classList.toggle('has-file',Boolean(file));name.textContent=file?file.name:'';}
+    audio.addEventListener('change',()=>showFile(audio,document.getElementById('audioCard'),document.getElementById('audioName')));
+    slides.addEventListener('change',()=>showFile(slides,document.getElementById('slidesCard'),document.getElementById('slidesName')));
+    for(const [input,card] of [[audio,document.getElementById('audioCard')],[slides,document.getElementById('slidesCard')]]){
+      card.addEventListener('dragover',event=>{event.preventDefault();card.classList.add('dragging')});
+      card.addEventListener('dragleave',()=>card.classList.remove('dragging'));
+      card.addEventListener('drop',event=>{event.preventDefault();card.classList.remove('dragging');if(event.dataTransfer.files.length){input.files=event.dataTransfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}});
+    }
+    form.addEventListener('submit',event=>{
+      if(!audio.files.length&&!slides.files.length){event.preventDefault();let error=document.querySelector('.error');if(!error){error=document.createElement('div');error.className='error';error.setAttribute('role','alert');form.after(error)}error.textContent='Choose an audio recording, a PowerPoint file, or both.';return}
+      button.disabled=true;button.querySelector('span').textContent='Processing your lecture…';loading.classList.add('active');
+    });
+  </script>
+</body>
+</html>

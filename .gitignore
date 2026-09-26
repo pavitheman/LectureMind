@@ -1,12 +1,34 @@
-test.*
-*.mp4
+# Python environments and bytecode
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Local secrets and machine-specific settings
+.env
+.env.*
+!.env.example
+
+# Test, coverage, and lint caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Uploaded lecture files and generated artifacts
+uploads/
+outputs/
+generated/
+temp_slide_*
 *.mp3
+*.mp4
 *.wav
 *.m4a
-*.json
 *.srt
 *.tsv
 *.vtt
-*.txt
-__pycache__/
-*.pyc
+
+# Private planning notes
+PRIVATE_PROJECT_CHECKLIST.md

@@ -13,11 +13,12 @@
 3. [User Personas](#user-personas)
 4. [System Architecture Overview](#system-architecture-overview)
 5. [Feature Specifications](#feature-specifications)
-   - [F1: Audio Transcription](#f1-audio-transcription)
-   - [F2: Flashcard Generation](#f2-flashcard-generation)
-   - [F3: Lecture Summarisation](#f3-lecture-summarisation)
-   - [F4: Sentiment & Complexity Analysis](#f4-sentiment--complexity-analysis)
-   - [F5: Downloadable Study Pack](#f5-downloadable-study-pack)
+    - [F1: Audio Transcription](#f1-audio-transcription)
+    - [F2: Flashcard Generation](#f2-flashcard-generation)
+    - [F3: Lecture Summarisation](#f3-lecture-summarisation)
+    - [F4: PowerPoint Slide Processing](#f4-powerpoint-slide-processing)
+    - [F5: Quiz Generation](#f5-quiz-generation)
+    - [F6: Downloadable Study Pack](#f6-downloadable-study-pack)
 6. [Tech Stack](#tech-stack)
 7. [AI Models Used](#ai-models-used)
 8. [Non-Functional Requirements](#non-functional-requirements)
@@ -28,9 +29,9 @@
 
 ## Overview
 
-**LectureMind** is a web-based AI tool designed to help university students get more out of their lecture recordings. It accepts an uploaded audio or video file, automatically transcribes the speech, generates a concise summary, produces study flashcards, and flags sections of the lecture that may be particularly complex or emotionally heavy — all within a clean, accessible web interface.
+**LectureMind** is a web-based AI tool designed to help university students get more out of their lecture materials. It accepts an uploaded audio recording and/or PowerPoint slide deck, automatically transcribes the speech, describes slide content using image captioning, generates a concise summary, produces study flashcards, and creates a quiz — all within a clean, accessible web interface.
 
-The system is built around three pre-trained AI models operating on different data modalities (audio, text, and text sentiment), fulfilling the CM3020 Final Year Project requirement of orchestrating multiple models to achieve a well-defined goal.
+The system is built around three pre-trained AI models operating on different data modalities (audio, image, and text), fulfilling the CM3020 Final Year Project requirement of orchestrating multiple models to achieve a well-defined goal.
 
 ---
 
@@ -40,7 +41,7 @@ The system is built around three pre-trained AI models operating on different da
 - Automatically transcribe lecture audio into accurate text using a speech-to-text model
 - Generate meaningful study flashcards from lecture transcripts using a local language model
 - Summarise long transcripts into digestible key points
-- Detect emotionally complex or heavy sections of a lecture using sentiment analysis
+- Extract content from lecture slides using image captioning (BLIP)
 - Deliver results through a clean, self-built web interface (Flask + HTML/CSS/JS)
 - Complete processing within a reasonable time for a typical 1-hour lecture
 
@@ -70,24 +71,26 @@ The system is built around three pre-trained AI models operating on different da
 User (Web Browser)
       │
       ▼
-Flask Web Server (app.py)
+Flask Web Server (webapp.py)
       │
-  ┌───┴──────────────────────────────────┐
-  │                                      │
-  ▼                                      ▼
-Audio Processing Pipeline          Static Web Frontend
-  ├── Whisper (transcription)         ├── index.html
-  ├── Ollama/llama3.2 (flashcards     ├── style.css
-  │     + summary)                    └── script.js
-  └── HuggingFace Sentiment
-        Analysis (complexity
-        flagging)
+  ┌───┴──────────────────────────────────────┐
+  │                                          │
+  ▼                                          ▼
+Input Processing Pipeline              Static Web Frontend
+  ├── Audio → Whisper (transcription)    ├── upload.html
+  ├── Slides → python-pptx + BLIP        ├── results.html
+  │             (text + image caption)    └── style.css
+  └── Transcript + Slide Content
+        → Ollama/llama3.2
+            ├── Summary
+            ├── Flashcards
+            └── Quiz
       │
       ▼
 JSON Response → Displayed in Browser
 ```
 
-**Recommendation:** Python 3.11+ with Flask for the backend. Whisper and HuggingFace models run locally; Ollama runs as a local server. No cloud API costs for core functionality.
+**Recommendation:** Python 3.11+ with Flask for the backend. Whisper and BLIP run via HuggingFace transformers; Ollama runs as a local server. Audio and slide uploads are independent — the user may provide one or both. No cloud API costs for core functionality.
 
 ---
 
@@ -103,7 +106,7 @@ User uploads audio file (mp3, mp4, wav, m4a)
   → Flask receives file
   → Whisper model transcribes audio
   → Transcript displayed in Transcript box
-  → Transcript passed to F2, F3, F4
+  → Transcript + slide content passed to F2, F3, F5
 ```
 
 **Display Format**
@@ -146,11 +149,11 @@ Caching: Whisper model loaded once on server start to avoid reload delay per req
 
 ### F2: Flashcard Generation
 **Purpose**
-Automatically generate study flashcards from the lecture transcript, saving students hours of manual note-taking.
+Automatically generate study flashcards from the lecture transcript and/or slide content, saving students hours of manual note-taking.
 
 **User Flow**
 ```
-Transcript received from F1
+Transcript and/or slide content received
   → Sent to Ollama with structured prompt
   → LLM generates Q&A flashcards
   → Flashcards displayed in Flashcards box
@@ -180,15 +183,22 @@ Model: Ollama with llama3.2 (runs locally)
 - Runs entirely on local machine
 - llama3.2 chosen over larger models for speed on CPU hardware
 
-Prompt design:
+Prompt design (current):
 ```
-Here is a lecture transcript. Please summarise it and generate 
-3 flashcards from it in the format:
+Generate 5 flashcards from the following lecture content.
+Format each flashcard as:
 Front: [question]
 Back: [answer]
 
-Transcript: {transcript}
+Lecture Content:
+Transcript:
+{transcript}
+
+Slide Content:
+{slide_content}
 ```
+
+Note: Prompts evolved during development. The current prompt generates 5 flashcards independently (not combined with summary) using both transcript and slide content when available. The app passes `transcript` and `slide_content` to the flashcard function, which builds a combined context string.
 
 Model selection rationale (to be documented in report):
 
@@ -204,19 +214,19 @@ Model selection rationale (to be documented in report):
 |---|---|---|
 | Flashcard front (question) | ✅ | Ollama |
 | Flashcard back (answer) | ✅ | Ollama |
-| Number of cards | ✅ | User configurable (default: 3) |
+| Number of cards | ✅ | Currently fixed at 5 (future: user-configurable) |
 
 ---
 
 ### F3: Lecture Summarisation
 **Purpose**
-Generate a concise paragraph summary of the lecture, giving students a quick overview before diving into flashcards.
+Generate a concise paragraph summary of the lecture content (transcript and/or slides), giving students a quick overview before diving into flashcards.
 
 **User Flow**
 ```
-Transcript received from F1
+Transcript and/or slide content received
   → Sent to Ollama with summarisation prompt
-  → Summary displayed above flashcards
+  → Summary displayed in Concepts & Summary box
 ```
 
 **Display Format**
@@ -232,86 +242,168 @@ and molecular interactions.
 
 **Tech Approach**
 
-Uses the same Ollama/llama3.2 model as F2 — both requests batched in a single API call to reduce latency.
+Uses the same Ollama/llama3.2 model as F2. The summary is generated via an independent Ollama call (not batched with flashcards), using a dedicated prompt that combines transcript and slide content when available.
 
-Prompt:
+Prompt (current):
 ```
-First, give a 2-3 sentence summary of this lecture transcript.
-Then generate 3 flashcards in Front/Back format.
-Transcript: {transcript}
+Summarise the following lecture content in 2-3 sentences.
+Focus on the main topic and key takeaways.
+
+Lecture Content:
+Transcript:
+{transcript}
+
+Slide Content:
+{slide_content}
 ```
 
 ---
 
-### F4: Sentiment & Complexity Analysis
+### F4: PowerPoint Slide Processing
 **Purpose**
-Flag sections of the transcript that are emotionally complex, heavy, or potentially confusing — helping students identify which parts of a lecture deserve extra attention.
+Extract structured content from uploaded lecture slides — both raw text and image captions — to enrich study materials alongside the audio transcript.
 
 **User Flow**
 ```
-Transcript split into segments (by sentence or paragraph)
-  → Each segment passed to HuggingFace sentiment model
-  → Segments labelled: Positive / Neutral / Negative
-  → Complex/negative segments highlighted in UI
-  → Summary: "3 sections flagged as potentially complex"
+User uploads .pptx file (optional, alongside audio)
+  → python-pptx extracts text from each slide
+  → Slide images rendered and passed to BLIP model
+  → BLIP generates a caption describing each slide image
+  → Combined text + captions displayed in Slides section
+  → Slide content passed to F2, F3 alongside transcript
 ```
 
 **Display Format**
 ```
-🧠 Complexity Analysis
+📊 Slide Content
 
-⚠️ Flagged Sections (may need extra attention):
+Slide 1 — "What is Matter?"
+  Text: Everything in this world is made up of matter...
+  Caption: A chalkboard with chemical formulas and atomic diagrams.
 
-Segment 2: "The quantum mechanical model describes electrons
-not as particles in fixed orbits but as probability clouds..."
-→ Sentiment: NEGATIVE (score: 0.87) — Dense/complex content
+Slide 2 — "Atomic Structure"
+  Text: Atoms are the building blocks of matter...
+  Caption: Diagram showing nucleus with protons and neutrons,
+          surrounded by orbiting electrons.
 
-Segment 5: "This contradicts classical Newtonian assumptions
-and requires a paradigm shift in thinking..."
-→ Sentiment: NEGATIVE (score: 0.79) — Potentially challenging
-
-✅ 6 of 8 segments: Clear and straightforward
+Slide 3 — "Chemical Bonds"
+  Text: Covalent bonds form when atoms share electrons...
+  Caption: Illustration of two hydrogen atoms sharing electrons.
 ```
 
 **Tech Approach**
 
-Model: HuggingFace `tabularisai/multilingual-sentiment-analysis`
-- Free, runs via transformers library
-- Classifies text as Positive, Neutral, or Negative
-- Negative sentiment in academic text often correlates with complex, dense, or challenging content
+Model: Salesforce `blip-image-captioning-base` (via HuggingFace transformers)
+- Free, open-source, runs locally
+- ~1GB model, loaded once at server start
+- Generates natural-language descriptions of slide images
+- Complements python-pptx text extraction
 
 Implementation:
 ```python
 from transformers import pipeline
-sentiment_pipeline = pipeline("sentiment-analysis", 
-    model="tabularisai/multilingual-sentiment-analysis")
+captioner = pipeline("image-to-text",
+    model="Salesforce/blip-image-captioning-base")
 
-segments = transcript.split(". ")
-results = sentiment_pipeline(segments)
-flagged = [s for s, r in zip(segments, results) 
-           if r["label"] == "NEGATIVE" and r["score"] > 0.7]
+# For each slide, extract text and render to image
+from pptx import Presentation
+from pptx.util import Inches
+import io
+from PIL import Image
+
+prs = Presentation("slides.pptx")
+slide_data = []
+for slide in prs.slides:
+    # Extract text
+    slide_text = ""
+    for shape in slide.shapes:
+        if shape.has_text_frame:
+            slide_text += shape.text + "\n"
+    # Render slide to image → caption via BLIP
+    # (Caption generated server-side from rendered slide PNG)
+    caption = captioner(slide_image)[0]["generated_text"]
+    slide_data.append({"text": slide_text, "caption": caption})
 ```
 
 Model selection rationale (to be documented in report):
 
-| Model | Multilingual | Speed | Decision |
-|---|---|---|---|
-| tabularisai/multilingual-sentiment-analysis | ✅ | Fast | ✅ Selected |
-| distilbert-base-uncased-finetuned-sst-2 | ❌ | Very fast | Considered |
-| cardiffnlp/twitter-roberta-base-sentiment | ❌ | Medium | Rejected — trained on tweets |
+| Model | Size | Caption Quality | Speed | Decision |
+|---|---|---|---|---|
+| blip-image-captioning-base | 990MB | Good | Fast (GPU) / Moderate (CPU) | ✅ Selected |
+| blip-image-captioning-large | 1.5GB | Better | Slower | Considered — if GPU available |
+| vit-gpt2-image-captioning | 600MB | Adequate | Fast | Rejected — lower caption quality |
 
 **Data Fields**
 
 | Field | Required | Source |
 |---|---|---|
-| Segment text | ✅ | Split from transcript |
-| Sentiment label | ✅ | HuggingFace model |
-| Confidence score | ✅ | HuggingFace model |
-| Flagged status | ✅ | Derived (label + threshold) |
+| Slide number | ✅ | python-pptx |
+| Slide text content | ✅ | python-pptx (text frames) |
+| Slide image caption | ✅ | BLIP model |
+| Slide title (if available) | ⚡ Optional | python-pptx (title shape) |
 
 ---
 
-### F5: Downloadable Study Pack
+### F5: Quiz Generation
+**Purpose**
+Generate a 5-question quiz from the lecture content (transcript and/or slides) to help students test their understanding.
+
+**User Flow**
+```
+Transcript and/or slide content received
+  → Sent to Ollama with topic extraction prompt
+  → LLM returns 5 distinct lecture topics
+  → For each topic, a separate Ollama call generates
+    one question with an answer line
+  → All 5 questions displayed in Quiz box
+```
+
+**Display Format**
+```
+📝 Quiz
+
+Question 1: What is the central concept in chemistry?
+Answer: _______________________________________________
+
+Question 2: How do atoms form chemical bonds with other atoms?
+Answer: _______________________________________________
+```
+
+**Tech Approach**
+
+Model: Ollama with llama3.2 (runs locally)
+- Two-stage generation to guarantee 5 distinct, non-repeating questions
+- Stage 1: Extract 5 distinct topics from the combined lecture content
+- Stage 2: Generate 1 question per topic, each with an answer line
+- Retry logic: if the answer line is missing, re-prompt (max 2 attempts)
+
+Implementation flow:
+```
+def generate_quiz(transcript, slide_content):
+    # Stage 1: Extract 5 topics
+    topics = llm.invoke(topic_prompt)
+    # Stage 2: Generate one question per topic
+    for topic in topics:
+        response = llm.invoke(question_prompt.format(topic))
+        # Verify answer line present; retry if missing
+        if "Answer:" not in response and attempts < 2:
+            response = llm.invoke(retry_prompt)
+        quiz.append({"question": response, "topic": topic})
+```
+
+Total Llama calls: 6 (1 topic extraction + 5 questions). Slower but reliably produces 5 distinct questions.
+
+**Data Fields**
+
+| Field | Required | Source |
+|---|---|---|
+| Question text | ✅ | Ollama (stage 2) |
+| Answer line placeholder | ✅ | Ollama (stage 2) |
+| Topic label | ✅ | Ollama (stage 1) |
+
+---
+
+### F6: Downloadable Study Pack
 **Purpose**
 Allow students to download their transcript, summary, and flashcards as a text file for offline study.
 
@@ -321,9 +413,10 @@ Results displayed on screen
   → User clicks "Download Study Pack"
   → .txt file downloaded containing:
       - Transcript
+      - Slide content
       - Summary
       - Flashcards
-      - Flagged complex sections
+      - Quiz
 ```
 
 **Tech Approach**
@@ -349,7 +442,8 @@ def download():
 | Web framework | Flask 2.x | Lightweight, easy to learn, industry standard |
 | Speech-to-text | OpenAI Whisper (base) | Free, local, highly accurate |
 | Language model | Ollama + llama3.2 | Free, local, no API costs |
-| Sentiment analysis | HuggingFace transformers | Free, large model library, easy API |
+| Image captioning | Salesforce BLIP (HuggingFace) | Free, local, ~1GB model, rich caption quality |
+| Slide parsing | python-pptx | Extracts text and embedded images from .pptx |
 | Frontend | HTML5 + CSS3 + Vanilla JS | Full custom build, no frameworks |
 | Hosting | Local (localhost:5000) | FYP scope; can deploy to Railway/Render later |
 
@@ -358,12 +452,12 @@ def download():
 ## AI Models Used
 
 | # | Model | Task | Data Type | Source |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | 1 | OpenAI Whisper (base) | Speech → Text | Audio | openai/whisper |
-| 2 | Ollama llama3.2 | Text → Summary + Flashcards | Text | ollama.com |
-| 3 | HuggingFace Sentiment | Text → Complexity labels | Text | huggingface.co |
+| 2 | Salesforce BLIP | Image → Text caption | Image (slides) | huggingface.co/Salesforce/blip-image-captioning-base |
+| 3 | Ollama llama3.2 | Text → Summary + Flashcards + Quiz | Text | ollama.com |
 
-All three models operate on different data domains (audio, generated text, sentiment analysis), satisfying the CM3020 requirement for models operating across multiple data spaces.
+All three models operate on different data domains (audio, image, text), satisfying the CM3020 requirement for models operating across multiple data spaces.
 
 ---
 
@@ -373,8 +467,9 @@ All three models operate on different data domains (audio, generated text, senti
 |---|---|
 | Transcription time (1 min audio, CPU) | < 60 seconds |
 | Flashcard generation time | < 30 seconds |
-| Sentiment analysis time | < 10 seconds |
-| Supported file formats | mp3, mp4, wav, m4a |
+| Slide processing time (per slide) | < 30 seconds |
+| Supported audio formats | mp3, mp4, wav, m4a |
+| Supported slide formats | .pptx |
 | Max file size | 500MB |
 | Browser compatibility | Chrome, Firefox, Edge |
 | Whisper model size | base (74MB) — balances speed and accuracy |
@@ -397,11 +492,15 @@ All three models operate on different data domains (audio, generated text, senti
 - [x] File upload and result display working
 - [x] Loading state and error handling
 
-### Phase 3 — Third Model & Features (Week 5–6) 🔄 In Progress
-- [ ] HuggingFace sentiment analysis integrated (F4)
-- [ ] Lecture summary added to output (F3)
-- [ ] Download study pack feature (F5)
-- [ ] Number of flashcards selector
+### Phase 3 — Third Model & Features (Week 5–6) ✅ Complete
+- [x] BLIP image captioning integrated (F4)
+- [x] python-pptx slide text extraction (F4)
+- [x] Dual upload support (audio + slides, either optional)
+- [x] Lecture summary added to output (F3)
+- [x] Quiz generation added (two-stage: topics → questions)
+- [x] Flashcards re-added with clean prompt
+- [ ] Download study pack feature (F5) ⏳ Future
+- [ ] Number of flashcards selector ⏳ Future
 
 ### Phase 4 — Testing & Evaluation (Week 7–8) ⏳ Upcoming
 - [ ] Test Whisper across different audio qualities
@@ -417,12 +516,12 @@ All three models operate on different data domains (audio, generated text, senti
 
 | # | Question | Priority |
 |---|---|---|
-| 1 | Should sentiment analysis flag by sentence or paragraph? Sentence = more precise but slower | High |
-| 2 | Should the number of flashcards be user-configurable (3 / 5 / 10)? | High |
-| 3 | Should we support video files (.mp4) or audio only for v1? Whisper supports both | Medium |
-| 4 | Should complex sections be highlighted inline in the transcript or shown separately? | Medium |
-| 5 | Is a `.txt` download sufficient or should we generate a formatted `.pdf` study pack? | Medium |
-| 6 | Should we add multi-language support using Whisper's built-in language detection? | Low |
+| 1 | Should the number of flashcards be user-configurable (3 / 5 / 10)? | High |
+| 2 | Should we support video files (.mp4) or audio only for v1? Whisper supports both | Medium |
+| 3 | Is a `.txt` download sufficient or should we generate a formatted `.pdf` study pack? | Medium |
+| 4 | Should BLIP captions be generated per-slide or only for flagged slides? | Medium |
+| 5 | Should we add multi-language support using Whisper's built-in language detection? | Low |
+| 6 | Should TTS (text-to-speech) be added as an accessibility enhancement? | Low |
 
 ---
 
