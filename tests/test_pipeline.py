@@ -2,10 +2,12 @@
 
 import io
 import os
+import sys
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from pptx import Presentation
 
@@ -34,6 +36,23 @@ Answer: B"""
 
 
 class PipelineUnitTests(unittest.TestCase):
+    def test_blip_loader_uses_processor_and_caption_model(self):
+        processor, model = object(), object()
+        processor_loader = Mock(return_value=processor)
+        model_loader = Mock(return_value=model)
+        fake_transformers = SimpleNamespace(
+            BlipProcessor=SimpleNamespace(from_pretrained=processor_loader),
+            BlipForConditionalGeneration=SimpleNamespace(from_pretrained=model_loader),
+        )
+
+        with patch.dict(sys.modules, {"transformers": fake_transformers}):
+            with patch.object(pipeline, "_captioner", None), patch.object(pipeline, "_captioner_attempted", False):
+                loaded = pipeline._load_captioner()
+
+        self.assertEqual(loaded, (processor, model))
+        processor_loader.assert_called_once_with("Salesforce/blip-image-captioning-base")
+        model_loader.assert_called_once_with("Salesforce/blip-image-captioning-base")
+
     def test_split_chunks_preserves_words_and_respects_limit(self):
         source = "word " * 100
         chunks = pipeline._split_chunks(source, limit=37)
