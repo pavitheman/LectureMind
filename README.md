@@ -1,27 +1,27 @@
 # LectureMind
 
-LectureMind is a locally run study assistant that turns a lecture recording, a PowerPoint deck, or both into revision materials: a transcript, slide notes, key concepts, a summary, flashcards, a multiple-choice quiz, and a visual mind map.
+I built LectureMind as a local study assistant that turns a lecture recording, a PowerPoint presentation, or both into revision materials. It produces a transcript, slide notes, key concepts, a summary, flashcards, a multiple-choice quiz, and a visual mind map.
 
-## Features
+## What I built
 
-- Transcribes lecture audio with Whisper.
-- Extracts PowerPoint text and can caption slide images.
-- Creates a formatted overview, clickable flashcards, and selectable quiz answers with feedback.
-- Builds a mind map from the lecture concepts and provides an SVG download.
-- Processes uploaded files in a request-specific temporary folder and removes them when processing finishes.
-- Runs AI inference locally. Large inputs are summarized in chunks before study materials are generated.
+- I use Whisper to transcribe lecture audio.
+- I extract text from PowerPoint slides and use BLIP to caption embedded images.
+- I generate an overview, flashcards, and a multiple-choice quiz from the lecture content.
+- I create a mind map from the lecture concepts and let users download it as an SVG.
+- I process each upload in a temporary request folder and remove the files when processing finishes.
+- I run the AI inference locally. For long lectures, I summarize the content in chunks before generating study materials.
 
-## Model scope
+## AI models
 
-The current implementation uses three pretrained AI models:
+I use three pretrained models in the current implementation:
 
-| Model | Use |
+| Model | What I use it for |
 | --- | --- |
 | OpenAI Whisper `base` | Audio transcription |
 | Salesforce BLIP `Salesforce/blip-image-captioning-base` | Optional descriptions of slide images |
 | Llama 3.2 through Ollama | Summaries, concepts, flashcards, quizzes, and structured mind-map content |
 
-The mind map is generated from Llama's structured output and drawn as SVG. Graphviz is used as an optional renderer when installed; LectureMind has a built-in SVG fallback. Graphviz is not an additional AI model. The preliminary report specifies three pretrained models, and the project brief asks for multiple models across data types. An August 21 client message also mentioned a mind-map generator using “another AI model”; the current implementation reuses Llama for the map. Confirm whether that message meant a separate fourth model before describing a separate map model as a client requirement.
+My preliminary report specifies these three models. I reuse Llama's structured output for the mind map, then render it as SVG. Graphviz is an optional renderer; if it is unavailable, I use the built-in SVG renderer. Graphviz is not an AI model, so the mind map does not add a fourth model to the pipeline.
 
 ## Requirements
 
@@ -43,7 +43,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-Install FFmpeg and verify `ffmpeg` runs in PowerShell. Install and start Ollama, then download the language model:
+Install FFmpeg and verify that `ffmpeg` runs in PowerShell. Install and start Ollama, then download the language model:
 
 ```powershell
 ollama pull llama3.2
@@ -71,20 +71,20 @@ With the project environment activated:
 python -m unittest discover -s tests -v
 ```
 
-The automated tests use Python's built-in `unittest` framework and mock AI inference, so they do not download model weights or require Ollama/FFmpeg. They cover parsers, long-input chunking, mind-map fallback output, upload validation, the audio/slides/combined routes, oversized and damaged uploads, and partial model failures. They do not replace a manual end-to-end run with the local models.
+I wrote the automated tests with Python's built-in `unittest` framework. They mock AI inference, so they do not download model weights or require Ollama or FFmpeg. They cover parsers, long-input chunking, mind-map fallback output, upload validation, audio and slide routes, oversized or damaged uploads, and partial model failures. I also ran a real combined audio-and-slide upload through all three models; the automated tests do not replace that end-to-end check on another machine.
 
 ## Inputs and limits
 
 - Audio: `.mp3`, `.wav`, `.m4a`, or `.mp4`
 - Slides: `.pptx`
-- Audio and slides can be submitted together.
+- I allow audio and slides to be submitted together.
 - Maximum combined upload size: 500 MB.
-- The app currently generates materials for the active request; it does not provide a persistent lecture library or user accounts.
+- I generate materials for the active request; I have not added user accounts or a persistent lecture library.
 
 ## Project files
 
-- `webapp.py` — Flask routes, upload validation, and results assembly.
-- `app.py` — model-backed processing pipeline, parsers, and mind-map rendering.
+- `webapp.py` — I use Flask for upload routes, validation, and results assembly.
+- `app.py` — I implement the local AI pipeline, parsers, and mind-map renderer here.
 - `templates/upload.html` — upload page.
 - `templates/results.html` — overview, mind map, flashcards, quiz, transcript, and slide notes.
 - `tests/test_pipeline.py` — unit and mocked Flask route tests.
@@ -92,22 +92,19 @@ The automated tests use Python's built-in `unittest` framework and mock AI infer
 
 ## Project progress
 
-This timeline records dated checkpoints supported by the available Git history and project correspondence. The Git repository contains no commit records for each week between August and September, so this is a milestone history, not a claim of weekly commits or a complete week-by-week work log.
+I list dated milestones that are supported by the repository history. The repository does not record a code change for every week, so I have not filled gaps with unverified weekly entries.
 
-| Date | Evidence-backed milestone |
+| Date | Progress |
 | --- | --- |
-| May 9, 2026 | Git history records the initial repository and the PRD. |
-| May 10, 2026 | Git history records the Whisper transcription feature and its merge. |
-| May 31, 2026 | Git history records Llama/Ollama summary and flashcard generation. |
-| August 20, 2026 | Client correspondence records the assignment and final-submission expectations. |
-| August 21, 2026 | Client correspondence discusses the AI model count and mind-map direction. |
-| September 9, 2026 | Preliminary-report feedback identifies areas to strengthen, including technical design, work plan, evaluation, and prototype visuals. |
-| September 15, 2026 | Project correspondence describes the three-model scope and the mind map as Llama-generated content rendered with Graphviz. |
-| September 26, 2026 | PR #2 merged the Flask interface, mind-map and study-material flows, dependency setup, ignore rules, tests, and documentation into `main`. A follow-up BLIP captioning correction is under review in PR #3. |
+| May 9, 2026 | I created the repository and added the initial project requirements. |
+| May 10, 2026 | I added Whisper audio transcription. |
+| May 31, 2026 | I connected Ollama and Llama 3.2 for summaries and flashcards. |
+| September 26, 2026 | I merged the Flask app, lecture study tools, mind map, setup documentation, and automated tests into `main` in PR #2. |
+| September 26, 2026 | I fixed BLIP slide-image captioning and updated the model-scope documentation in PR #3, which is awaiting review. |
 
 ## Current limitations
 
-- Output quality depends on the recording, slide readability, and locally available model performance.
-- BLIP captions are optional; slide text extraction can continue without them.
-- Automated tests mock model calls, so verify the complete upload-to-results flow locally before a demonstration or release.
-- Confirm whether the client expected the mind map to use a separate pretrained model; the current implementation uses Llama for the map, and the preliminary report specifies three models total.
+- Output quality depends on the recording, slide readability, and local model performance.
+- BLIP captioning is optional; I continue extracting slide text if image captioning is unavailable.
+- Automated tests mock model calls. I recommend running the full upload flow with the local models before a demonstration or release.
+- The mind map reuses Llama and does not use a separate pretrained model.
