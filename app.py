@@ -71,9 +71,12 @@ def _load_captioner():
             if _captioner is None:
                 _captioner_attempted = True
                 try:
-                    from transformers import pipeline
+                    from transformers import BlipForConditionalGeneration, BlipProcessor
                     print("Loading BLIP slide-image model...")
-                    _captioner = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
+                    model_name = "Salesforce/blip-image-captioning-base"
+                    processor = BlipProcessor.from_pretrained(model_name)
+                    model = BlipForConditionalGeneration.from_pretrained(model_name)
+                    _captioner = (processor, model)
                 except Exception as exc:
                     print(f"BLIP unavailable; slide text extraction will continue without image captions: {exc}")
                     return None
@@ -124,7 +127,12 @@ def process_slides(pptx_path, work_dir=None):
                     image_path = temp_root / f"slide-{slide_number}-{image_number}.{ext}"
                     image_path.write_bytes(shape.image.blob)
                     try:
-                        caption = captioner(str(image_path))[0].get("generated_text", "").strip()
+                        from PIL import Image
+                        processor, model = captioner
+                        with Image.open(image_path) as image:
+                            inputs = processor(images=image.convert("RGB"), return_tensors="pt")
+                        generated = model.generate(**inputs, max_new_tokens=48)
+                        caption = processor.decode(generated[0], skip_special_tokens=True).strip()
                     finally:
                         image_path.unlink(missing_ok=True)
                     if caption:
