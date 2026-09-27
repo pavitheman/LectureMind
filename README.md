@@ -6,7 +6,7 @@ I built LectureMind as a local study assistant that turns a lecture recording, a
 
 - I use Whisper to transcribe lecture audio.
 - I extract text from PowerPoint slides and use BLIP to caption embedded images.
-- I generate an overview, flashcards, and a multiple-choice quiz from the lecture content.
+- I generate an overview and flashcards from the lecture content, then build a multiple-choice concept quiz from the visible overview.
 - I create a mind map from the lecture concepts and let users download it as an SVG.
 - I process each upload in a temporary request folder and remove the files when processing finishes.
 - I run the AI inference locally. For long lectures, I summarize the content in chunks before generating study materials.
@@ -19,7 +19,7 @@ I use three pretrained models in the current implementation:
 | --- | --- |
 | OpenAI Whisper `base` | Audio transcription |
 | Salesforce BLIP `Salesforce/blip-image-captioning-base` | Optional descriptions of slide images |
-| Llama 3.2 through Ollama | Summaries, concepts, flashcards, quizzes, and structured mind-map content |
+| Llama 3.2 through Ollama | Summaries, concepts, flashcards, and structured mind-map content; the concept quiz uses its overview output |
 
 My preliminary report specifies these three models. I reuse Llama's structured output for the mind map, then render it as SVG. Graphviz is an optional renderer; if it is unavailable, I use the built-in SVG renderer. Graphviz is not an AI model, so the mind map does not add a fourth model to the pipeline.
 
@@ -71,7 +71,7 @@ With the project environment activated:
 python -m unittest discover -s tests -v
 ```
 
-I wrote the automated tests with Python's built-in `unittest` framework. They mock AI inference, so they do not download model weights or require Ollama or FFmpeg. They cover parsers, long-input chunking, mind-map fallback output, upload validation, audio and slide routes, oversized or damaged uploads, and partial model failures. I also ran a real combined audio-and-slide upload through all three models; the automated tests do not replace that end-to-end check on another machine.
+I wrote 20 automated tests with Python's built-in `unittest` framework. They mock AI inference, so they do not download model weights or require Ollama or FFmpeg. They cover parsers, long-input chunking, concept-based quiz answer keys, mind-map fallback output, upload validation, audio and slide routes, oversized or damaged uploads, and partial model failures. I also ran a real combined audio-and-slide upload through all three models; the automated tests do not replace that end-to-end check on another machine.
 
 ## Inputs and limits
 
@@ -100,7 +100,8 @@ I list dated milestones that are supported by the repository history. The reposi
 | May 10, 2026 | I added Whisper audio transcription. |
 | May 31, 2026 | I connected Ollama and Llama 3.2 for summaries and flashcards. |
 | September 26, 2026 | I merged the Flask app, lecture study tools, mind map, setup documentation, and automated tests into `main` in PR #2. |
-| September 26, 2026 | I fixed BLIP slide-image captioning and updated the model-scope documentation in PR #3, which is awaiting review. |
+| September 26, 2026 | I fixed BLIP slide-image captioning and updated the model-scope documentation in merged PR #3. |
+| September 27, 2026 | I reviewed a controlled audio-and-slide run, made quiz answer keys derive from the displayed concepts, aligned mind-map branches with the overview, and expanded the automated suite. |
 
 ## Current limitations
 

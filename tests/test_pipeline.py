@@ -93,6 +93,47 @@ class PipelineUnitTests(unittest.TestCase):
         self.assertEqual(parsed[0]["options"][1], {"letter": "B", "text": "A base case"})
         self.assertEqual(parsed[0]["answer"], "B")
 
+    @patch.object(pipeline, "_chat")
+    def test_quiz_retries_repeated_question(self, chat):
+        first = "Question: What is recursion?\nA. A loop\nB. A function calling itself\nC. A list\nD. A file\nAnswer: B"
+        second = "Question: What stops recursion?\nA. A base case\nB. A loop\nC. A file\nD. A comment\nAnswer: A"
+        chat.side_effect = ["1. Recursion\n2. Base case", first, first, second]
+
+        quiz = pipeline.generate_quiz(context="A function calls itself. A base case stops recursion.")
+
+        self.assertEqual(len(pipeline.parse_quiz(quiz)), 2)
+        self.assertEqual(chat.call_count, 4)
+
+    def test_quiz_rejects_answer_with_unsupported_specific_terms(self):
+        item = pipeline.parse_quiz(
+            "Question: Which topic is covered?\nA. Ancient history\nB. Silicon transistors\n"
+            "C. Resource management\nD. Programming syntax\nAnswer: B"
+        )[0]
+        self.assertFalse(pipeline._answer_supported(item, "The lecture discusses operating systems and resource management."))
+
+    def test_quiz_uses_visible_concepts_for_distinct_answerable_questions(self):
+        summary = """KEY CONCEPTS
+1. Recursion: A function calls itself.
+2. Base case: A stopping condition ends recursion.
+3. Call stack: It tracks active function calls.
+4. Iteration: It repeats steps with a loop.
+SUMMARY
+The lecture compares these ideas."""
+        quiz = pipeline.generate_quiz(context="The lecture compares recursion, base cases, call stacks, and iteration.", summary=summary)
+        parsed = pipeline.parse_quiz(quiz)
+        self.assertEqual(len(parsed), 4)
+        self.assertEqual([item["answer"] for item in parsed], list("ABCD"))
+        self.assertEqual(parsed[1]["options"][1]["text"], "Base case")
+
+    @patch.object(pipeline, "_chat", return_value='{"title":"Recursion","concepts":[{"label":"Recursion","details":["A function calls itself."]},{"label":"Unrelated","details":["Extra"]}]}')
+    def test_mindmap_keeps_overview_concept_names(self, _chat):
+        result = pipeline.generate_mindmap(
+            context="A function calls itself. A base case stops recursion.",
+            summary=SUMMARY,
+        )
+
+        self.assertEqual([item["label"] for item in result["concepts"]], ["Recursion", "Base case"])
+
     def test_mindmap_concepts_keep_labels_separate_from_explanations(self):
         concepts = pipeline._concepts_from_summary(
             "1. **Recursion**: A function calls itself.\n2. Base case: A stopping condition."

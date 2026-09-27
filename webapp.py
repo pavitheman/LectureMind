@@ -138,7 +138,7 @@ def process():
             generators = (
                 ("summary", lambda: generate_summary(context=context)),
                 ("flashcards", lambda: generate_flashcards(context=context)),
-                ("quiz", lambda: generate_quiz(context=context)),
+                ("quiz", lambda: generate_quiz(context=context, summary=results["summary"])),
             )
             for name, generate in generators:
                 try:

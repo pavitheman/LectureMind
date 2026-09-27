@@ -10,6 +10,7 @@ import os
 import re
 import tempfile
 import threading
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import ollama
@@ -224,10 +225,13 @@ def generate_flashcards(transcript=None, slide_content=None, *, context=None):
     )
 
 
-def generate_quiz(transcript=None, slide_content=None, *, context=None):
+def generate_quiz(transcript=None, slide_content=None, *, context=None, summary=""):
     context = context if context is not None else build_context(transcript, slide_content)
     if not context:
         return ""
+    concept_quiz = _quiz_from_summary(summary)
+    if concept_quiz:
+        return concept_quiz
     topic_text = _chat(
         "You identify distinct, testable topics using only the provided lecture material.",
         "Return up to five distinct numbered topics. Do not invent topics if the source does not support them.\n\n" + context,
@@ -241,18 +245,106 @@ def generate_quiz(transcript=None, slide_content=None, *, context=None):
         raise PipelineError("The language model did not identify quiz topics from this lecture. Try processing the files again.")
 
     questions = []
+    previous_prompts = []
     for topic in topics[:5]:
-        question = _chat(
-            "You write clear multiple-choice questions based only on the supplied lecture material. Include exactly one correct option.",
-            f"Write one multiple-choice question about: {topic}\nUse this exact format:\nQuestion: ...\nA. ...\nB. ...\nC. ...\nD. ...\nAnswer: A/B/C/D\n\n{context}",
-        )
-        if not re.search(r"(?im)^\s*Answer:\s*[A-D]\b", question):
-            question = _chat(
-                "Return one valid multiple-choice question grounded only in the source. The final line must be Answer: A, B, C, or D.",
-                f"Repair the format and ensure there is one supported correct answer. Topic: {topic}\n\n{question}\n\nSource:\n{context}",
+        question = ""
+        for attempt in range(2):
+            previous = "\n".join(f"- {prompt}" for prompt in previous_prompts) or "None"
+            retry_note = (
+                f"Your previous response was incomplete or too similar to an earlier question:\n{question}\n"
+                "Write a different question with four distinct options.\n"
+                if attempt else ""
             )
-        questions.append(question)
+            question = _chat(
+                "You write precise multiple-choice questions using only the supplied lecture material. "
+                "Each question has one clearly correct answer and three distinct, clearly wrong alternatives.",
+                f"Write one specific, verifiable question about: {topic}\n"
+                "Avoid vague questions about the course's main focus, invented course sections, "
+                "overlapping answer options, and facts absent from the source. "
+                "Do not repeat or rephrase an earlier question.\n"
+                f"Earlier questions:\n{previous}\n"
+                f"{retry_note}"
+                "Use this exact format:\nQuestion: ...\nA. ...\nB. ...\nC. ...\nD. ...\nAnswer: A/B/C/D\n\n"
+                f"Source:\n{context}",
+            )
+            parsed = parse_quiz(question)
+            if len(parsed) != 1 or not _valid_quiz_item(parsed[0]):
+                continue
+            if not _answer_supported(parsed[0], context):
+                continue
+            prompt = parsed[0]["prompt"]
+            if any(quoted.casefold() not in context.casefold() for quoted in re.findall(r'["“]([^"”]+)["”]', prompt)):
+                continue
+            if any(_is_repeated_question(prompt, old) for old in previous_prompts):
+                continue
+            questions.append(question)
+            previous_prompts.append(prompt)
+            break
+    if not questions:
+        raise PipelineError("The language model did not return a usable quiz. Other study materials may still be available.")
     return "\n\n".join(questions)
+
+
+def _quiz_from_summary(summary):
+    """Build unambiguous concept matching MCQs from the visible overview."""
+    concepts = [item for item in _concepts_from_summary(summary) if item["details"]]
+    labels = [item["label"] for item in concepts]
+    if len(concepts) < 4 or len({label.casefold() for label in labels}) != len(labels):
+        return ""
+    questions = []
+    for index, concept in enumerate(concepts[:5]):
+        alternatives = [label for label in labels if label != concept["label"]][:3]
+        if len(alternatives) != 3:
+            continue
+        correct_at = index % 4
+        alternatives.insert(correct_at, concept["label"])
+        description = concept["details"][0].replace('"', "'").strip()
+        lines = [f'Question: Which lecture concept matches this statement: "{description}"?']
+        lines.extend(f"{letter}. {label}" for letter, label in zip("ABCD", alternatives))
+        lines.append(f"Answer: {'ABCD'[correct_at]}")
+        questions.append("\n".join(lines))
+    return "\n\n".join(questions)
+
+
+def _valid_quiz_item(item):
+    options = item.get("options", [])
+    letters = [option.get("letter") for option in options]
+    texts = [re.sub(r"\s+", " ", option.get("text", "")).strip().casefold() for option in options]
+    return (
+        bool(item.get("prompt", "").strip())
+        and len(options) == 4
+        and letters == ["A", "B", "C", "D"]
+        and item.get("answer") in letters
+        and all(texts)
+        and len(set(texts)) == 4
+    )
+
+
+def _answer_supported(item, source):
+    """Reject an answer that introduces specific terms absent from the source."""
+    answer = next(option["text"] for option in item["options"] if option["letter"] == item["answer"])
+    ignored = {"about", "after", "before", "being", "course", "computer", "computers", "could", "from", "have", "into", "their", "there", "these", "those", "through", "using", "which", "would"}
+    words = {word for word in re.findall(r"[a-z]{5,}", answer.casefold()) if word not in ignored}
+    if not words:
+        return True
+    source_words = set(re.findall(r"[a-z]{5,}", source.casefold()))
+    matches = sum(any(word[:5] == candidate[:5] for candidate in source_words) for word in words)
+    return matches / len(words) >= 0.6
+
+
+def _is_repeated_question(prompt, earlier):
+    current_words = re.findall(r"\w+", prompt.casefold())
+    earlier_words = re.findall(r"\w+", earlier.casefold())
+    if current_words == earlier_words:
+        return True
+    if all("main focus" in value and "course" in value for value in (prompt.casefold(), earlier.casefold())):
+        return True
+    return (
+        len(current_words) >= 5
+        and len(earlier_words) >= 5
+        and current_words[:5] == earlier_words[:5]
+        and SequenceMatcher(None, prompt.casefold(), earlier.casefold()).ratio() >= 0.78
+    )
 
 
 def _concepts_from_summary(summary):
@@ -264,10 +356,19 @@ def _concepts_from_summary(summary):
             label, separator, detail = value.partition(":")
             if not separator and " — " in value:
                 label, detail = value.split(" — ", 1)
+            if not detail:
+                detail = value
+                label = re.split(r"[,.;]", value, maxsplit=1)[0]
+                label = re.sub(r"^(?:the course (?:will |aims to )?|the term )", "", label, flags=re.I)
+                label = re.split(r"\b(?:refers to|play(?:s)? a|has different|will focus on|provide(?:s)? a|is an|are key|are pervasive)\b", label, maxsplit=1, flags=re.I)[0]
+                label = " ".join(label.split()[:6])
+                label = re.sub(r"^while\s+", "", label, flags=re.I)
+                if label.casefold() == "computers" and "society" in value.casefold():
+                    label = "Computers in society"
             label = re.sub(r"\s+", " ", label)
             label = label.strip("*# .- ")
             if label and label.lower() not in {item["label"].lower() for item in concepts}:
-                concepts.append({"label": label[:90], "details": [detail.strip()[:140]] if detail.strip() else []})
+                concepts.append({"label": label[:90], "details": [detail.strip()[:260]] if detail.strip() else []})
     return concepts[:7]
 
 
@@ -279,8 +380,8 @@ def generate_mindmap(transcript=None, slide_content=None, *, context=None, summa
     if context:
         prompt = (
             "Return JSON only with keys title and concepts. title is a short lecture topic. concepts is an array of exactly five distinct objects when the source supports five, each with label and details (one or two short supporting facts). "
-            "Use the key concepts in the supplied overview and keep the same concept names. Add a detail that explains each concept's connection to the lecture topic. Use only the supplied lecture. Do not invent facts."
-            f"\n\n{context}"
+            "Use the key concepts in the supplied overview. Each label must be a short noun phrase of at most five words. Use only the supplied lecture. Do not invent facts."
+            f"\n\nOVERVIEW CONCEPTS:\n{summary}\n\nLECTURE SOURCE:\n{context}"
         )
         try:
             raw = _chat("You organise lecture ideas into a concise study mind map.", prompt, response_format="json")
@@ -300,14 +401,33 @@ def generate_mindmap(transcript=None, slide_content=None, *, context=None, summa
                 if label:
                     parsed.append({"label": label[:90], "details": details[:2]})
             if parsed:
-                combined = []
-                known = set()
-                for concept in parsed + concepts:
-                    key = concept["label"].casefold()
-                    if key not in known:
-                        known.add(key)
-                        combined.append(concept)
-                concepts = combined[:7]
+                by_label = {item["label"].casefold(): item for item in parsed}
+                if concepts:
+                    # Keep the model's short labels where they match, but use the
+                    # overview's factual detail and its fixed number of branches.
+                    result = []
+                    for item in concepts[:5]:
+                        candidate = by_label.get(item["label"].casefold())
+                        if not candidate:
+                            generic = {"computer", "computers", "course", "lecture", "introduction", "study", "focus"}
+                            source_words = set(re.findall(r"[a-z]{4,}", (item["label"] + " " + " ".join(item["details"])).casefold())) - generic
+                            ranked = sorted(parsed, key=lambda branch: len((set(re.findall(r"[a-z]{4,}", branch["label"].casefold())) - generic) & source_words), reverse=True)
+                            if ranked and (set(re.findall(r"[a-z]{4,}", ranked[0]["label"].casefold())) - generic) & source_words:
+                                candidate = ranked[0]
+                        label = candidate["label"] if candidate and len(candidate["label"].split()) <= 5 else item["label"]
+                        if label.casefold() in {entry["label"].casefold() for entry in result}:
+                            label = item["label"]
+                        result.append({"label": label, "details": item["details"]})
+                    concepts = result
+                else:
+                    combined = []
+                    seen = set()
+                    for item in parsed:
+                        key = item["label"].casefold()
+                        if key not in seen:
+                            seen.add(key)
+                            combined.append(item)
+                    concepts = combined[:5]
         except Exception as exc:
             print(f"Mind-map structure fallback used: {exc}")
     if not concepts:
@@ -430,7 +550,7 @@ def _fallback_svg(title, concepts):
         detail_y = label_y + len(label_lines) * 24 + 7
         detail_line_index = 0
         for detail in details[:2]:
-            for value in _wrap_svg_text(detail, 55, 2):
+            for value in _wrap_svg_text(detail, 55, 3):
                 parts.append(f'<text x="{text_x}" y="{detail_y + detail_line_index * 18}" fill="#586a73" font-family="Arial,sans-serif" font-size="13">{escape(value)}</text>')
                 detail_line_index += 1
     parts.append("</svg>")
@@ -450,7 +570,7 @@ def render_mindmap_svg(mindmap):
             node = f"concept{index}"
             label = "\n".join(_wrap_svg_text(concept["label"], 38, 3))
             if concept.get("details"):
-                label += "\n" + "\n".join(line for detail in concept["details"][:2] for line in _wrap_svg_text(detail, 55, 2))
+                label += "\n" + "\n".join(line for detail in concept["details"][:2] for line in _wrap_svg_text(detail, 55, 3))
             lines.append(f"{node} [label={_dot_quote(label)}, fontsize=\"14\"];")
             lines.append(f"root -> {node};")
         lines.append("}")
